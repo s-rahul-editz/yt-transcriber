@@ -87,6 +87,79 @@ def transcribe(req: TranscribeRequest):
 
 @app.post("/playlist_ids")
 def playlist_ids(req: PlaylistRequest):
+    try:
+        videos = get_playlist_video_ids(req.url)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"count": len(videos), "videos": videos}
+
+
+@app.post("/playlist")
+def playlist(req: PlaylistRequest):
+    try:
+        videos = get_playlist_video_ids(req.url)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    results = []
+    for v in videos:
+        try:
+            results.append(transcribe(TranscribeRequest(url=v["id"])))
+        except HTTPException as e:
+            results.append({"video_id": v["id"], "title": v["title"], "error": e.detail})
+    return {"count": len(results), "results": results}            )
+        """)
+        conn.commit()
+
+
+init_db()
+
+
+class TranscribeRequest(BaseModel):
+    url: str
+
+
+class PlaylistRequest(BaseModel):
+    url: str
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/transcribe")
+def transcribe(req: TranscribeRequest):
+    video_id = extract_video_id(req.url)
+
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT data FROM transcripts WHERE video_id = ?", (video_id,)
+        ).fetchone()
+        if row:
+            cached = json.loads(row[0])
+            cached["from_cache"] = True
+            return cached
+
+    try:
+        result = transcribe_video(req.url)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    result["from_cache"] = False
+
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO transcripts (video_id, data) VALUES (?, ?)",
+            (video_id, json.dumps(result)),
+        )
+        conn.commit()
+
+    return result
+
+
+@app.post("/playlist_ids")
+def playlist_ids(req: PlaylistRequest):
     """Fast: just returns video IDs + titles in the playlist, no transcription."""
     try:
         videos = get_playlist_video_ids(req.url)
