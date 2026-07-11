@@ -8,10 +8,12 @@
   :root {
     --bg: #0f1210;
     --panel: #171b18;
+    --panel2: #1d2220;
     --line: #2a2f2b;
     --text: #e7ece8;
     --muted: #8a9389;
     --accent: #5ee6a0;
+    --error: #e6715e;
     --mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
   }
   * { box-sizing: border-box; }
@@ -21,9 +23,9 @@
     color: var(--text);
     font-family: var(--mono);
     min-height: 100vh;
-    padding: 40px 20px;
+    padding: 32px 16px 60px;
   }
-  .wrap { max-width: 720px; margin: 0 auto; }
+  .wrap { max-width: 760px; margin: 0 auto; }
   .eyebrow {
     color: var(--accent);
     font-size: 12px;
@@ -31,9 +33,368 @@
     text-transform: uppercase;
     margin-bottom: 8px;
   }
-  h1 {
-    font-size: 28px;
-    margin: 0 0 6px;
+  h1 { font-size: 26px; margin: 0 0 6px; font-weight: 600; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .tab {
+    background: none; border: none; color: var(--muted);
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .row { display: flex; gap: 8px; margin-bottom: 12px; }
+  input[type=text] {
+    flex: 1; background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    padding: 12px 14px; font-family: var(--mono); font-size: 14px; border-radius: 4px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #0f1210; border: none; padding: 12px 18px;
+    font-family: var(--mono); font-weight: 600; font-size: 13px; border-radius: 4px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 400; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Process log */
+  .log-box {
+    display: none;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 12px 14px; margin: 16px 0; max-height: 220px; overflow-y: auto;
+    font-size: 12px; line-height: 1.7;
+  }
+  .log-box.active { display: block; }
+  .log-line { color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+  .log-line.ok { color: var(--accent); }
+  .log-line.err { color: var(--error); }
+  .log-line .t { opacity: 0.5; margin-right: 6px; }
+
+  /* Single result */
+  .meta {
+    display: flex; gap: 16px; font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 10px 0; margin: 16px 0;
+  }
+  .meta span b { color: var(--text); }
+  .segment { display: flex; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
+  .segment .ts { color: var(--accent); font-size: 12px; white-space: nowrap; padding-top: 2px; width: 48px; }
+  .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  #results, #plResults { display: none; }
+
+  /* Playlist video list */
+  .pl-video {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line);
+  }
+  .pl-video .idx { color: var(--muted); font-size: 12px; width: 22px; flex-shrink: 0; }
+  .pl-video .title { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 3px; white-space: nowrap; flex-shrink: 0; }
+  .badge.queued { color: var(--muted); border: 1px solid var(--line); }
+  .badge.working { color: var(--accent); border: 1px solid var(--accent); }
+  .badge.done { color: var(--accent); background: rgba(94,230,160,0.12); }
+  .badge.error { color: var(--error); background: rgba(230,113,94,0.12); }
+  .pl-video .dl { display: none; gap: 6px; }
+  .pl-video .dl.show { display: flex; }
+  .pl-video .dl button { padding: 5px 8px; font-size: 11px; }
+
+  .summary { font-size: 13px; color: var(--muted); margin: 12px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Personal tool</div>
+  <h1>Transcriber</h1>
+  <div class="sub">Captions only — no audio download or AI transcription fallback.</div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="single">Single video</button>
+    <button class="tab" data-tab="playlist">Playlist</button>
+  </div>
+
+  <!-- SINGLE VIDEO -->
+  <div class="panel active" id="panel-single">
+    <div class="row">
+      <input id="url" type="text" placeholder="https://youtube.com/watch?v=..." />
+      <button id="go">Transcribe</button>
+    </div>
+
+    <div id="log" class="log-box"></div>
+
+    <div id="results">
+      <div class="meta">
+        <span>Method <b id="methodUsed">—</b></span>
+        <span>Language <b id="lang">—</b></span>
+        <span>Segments <b id="segCount">—</b></span>
+      </div>
+      <div id="segments"></div>
+      <div class="actions">
+        <button class="ghost" id="downloadTxt">Download .txt</button>
+        <button class="ghost" id="downloadSrt">Download .srt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLAYLIST -->
+  <div class="panel" id="panel-playlist">
+    <div class="row">
+      <input id="plUrl" type="text" placeholder="https://youtube.com/playlist?list=..." />
+      <button id="plGo">Load & transcribe</button>
+    </div>
+
+    <div id="plLog" class="log-box"></div>
+    <div class="summary" id="plSummary"></div>
+    <div id="plResults"></div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = "https://yt-transcriber-pjdq.onrender.com";
+
+  // ---------- Tabs ----------
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
+    });
+  });
+
+  // ---------- Helpers ----------
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+  function srtTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    const ms = Math.floor((sec % 1) * 1000);
+    return `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")},${ms.toString().padStart(3,"0")}`;
+  }
+  function nowStamp() {
+    const d = new Date();
+    return d.toTimeString().slice(0, 8);
+  }
+  function logTo(boxEl, text, kind = "") {
+    boxEl.classList.add("active");
+    const line = document.createElement("div");
+    line.className = `log-line ${kind}`;
+    line.innerHTML = `<span class="t">${nowStamp()}</span>${text}`;
+    boxEl.appendChild(line);
+    boxEl.scrollTop = boxEl.scrollHeight;
+  }
+  function download(filename, content) {
+    const blob = new Blob([content], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  }
+  function toTxt(segments) { return segments.map(s => s.text).join(" "); }
+  function toSrt(segments) {
+    let srt = "";
+    segments.forEach((s, i) => { srt += `${i + 1}\n${srtTime(s.start)} --> ${srtTime(s.end)}\n${s.text}\n\n`; });
+    return srt;
+  }
+
+  // ---------- SINGLE VIDEO ----------
+  const urlInput = document.getElementById("url");
+  const goBtn = document.getElementById("go");
+  const logBox = document.getElementById("log");
+  const resultsEl = document.getElementById("results");
+  const segmentsEl = document.getElementById("segments");
+  let lastResult = null;
+
+  async function transcribeSingle() {
+    const url = urlInput.value.trim();
+    if (!url) return;
+
+    goBtn.disabled = true;
+    resultsEl.style.display = "none";
+    logBox.innerHTML = "";
+    logBox.classList.add("active");
+
+    logTo(logBox, "Extracting video ID from URL...");
+    logTo(logBox, "Checking for manually-created captions...");
+
+    try {
+      const res = await fetch(`${API_BASE}/transcribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Transcription failed");
+      }
+
+      const data = await res.json();
+      lastResult = data;
+
+      if (data.from_cache) {
+        logTo(logBox, "Found in cache — returning instantly.", "ok");
+      } else {
+        logTo(logBox, `Captions found (${data.is_manual ? "manual" : "auto-generated"}, ${data.language}).`, "ok");
+      }
+      logTo(logBox, `Done — ${data.segments.length} segments retrieved.`, "ok");
+
+      renderSingleResult(data);
+    } catch (e) {
+      logTo(logBox, `Failed: ${e.message}`, "err");
+    } finally {
+      goBtn.disabled = false;
+    }
+  }
+
+  function renderSingleResult(data) {
+    document.getElementById("methodUsed").textContent = data.method_used;
+    document.getElementById("lang").textContent = data.language;
+    document.getElementById("segCount").textContent = data.segments.length;
+
+    segmentsEl.innerHTML = "";
+    for (const seg of data.segments) {
+      const row = document.createElement("div");
+      row.className = "segment";
+      row.innerHTML = `<span class="ts">${fmtTime(seg.start)}</span><span>${seg.text}</span>`;
+      segmentsEl.appendChild(row);
+    }
+    resultsEl.style.display = "block";
+  }
+
+  document.getElementById("downloadTxt").addEventListener("click", () => {
+    if (!lastResult) return;
+    download(`${lastResult.video_id}.txt`, toTxt(lastResult.segments));
+  });
+  document.getElementById("downloadSrt").addEventListener("click", () => {
+    if (!lastResult) return;
+    download(`${lastResult.video_id}.srt`, toSrt(lastResult.segments));
+  });
+
+  goBtn.addEventListener("click", transcribeSingle);
+  urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") transcribeSingle(); });
+
+  // ---------- PLAYLIST ----------
+  const plUrlInput = document.getElementById("plUrl");
+  const plGoBtn = document.getElementById("plGo");
+  const plLog = document.getElementById("plLog");
+  const plSummary = document.getElementById("plSummary");
+  const plResults = document.getElementById("plResults");
+  const plTranscripts = {}; // video_id -> result
+
+  async function runPlaylist() {
+    const url = plUrlInput.value.trim();
+    if (!url) return;
+
+    plGoBtn.disabled = true;
+    plResults.innerHTML = "";
+    plResults.style.display = "none";
+    plSummary.textContent = "";
+    plLog.innerHTML = "";
+    plLog.classList.add("active");
+    Object.keys(plTranscripts).forEach(k => delete plTranscripts[k]);
+
+    logTo(plLog, "Fetching playlist metadata...");
+
+    let videos;
+    try {
+      const res = await fetch(`${API_BASE}/playlist_ids`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Could not load playlist");
+      }
+      const data = await res.json();
+      videos = data.videos;
+      logTo(plLog, `Found ${videos.length} videos in playlist.`, "ok");
+    } catch (e) {
+      logTo(plLog, `Failed: ${e.message}`, "err");
+      plGoBtn.disabled = false;
+      return;
+    }
+
+    // Build the video list UI
+    plResults.style.display = "block";
+    videos.forEach((v, i) => {
+      const row = document.createElement("div");
+      row.className = "pl-video";
+      row.id = `pl-row-${v.id}`;
+      row.innerHTML = `
+        <span class="idx">${i + 1}</span>
+        <span class="title" title="${v.title}">${v.title}</span>
+        <span class="badge queued" id="pl-badge-${v.id}">queued</span>
+        <span class="dl" id="pl-dl-${v.id}">
+          <button class="ghost" data-txt="${v.id}">.txt</button>
+          <button class="ghost" data-srt="${v.id}">.srt</button>
+        </span>
+      `;
+      plResults.appendChild(row);
+    });
+
+    plResults.addEventListener("click", (e) => {
+      const txtId = e.target.getAttribute("data-txt");
+      const srtId = e.target.getAttribute("data-srt");
+      if (txtId && plTranscripts[txtId]) download(`${txtId}.txt`, toTxt(plTranscripts[txtId].segments));
+      if (srtId && plTranscripts[srtId]) download(`${srtId}.srt`, toSrt(plTranscripts[srtId].segments));
+    });
+
+    // Process sequentially, one at a time, so the log reads clearly
+    let successCount = 0, failCount = 0;
+    for (let i = 0; i < videos.length; i++) {
+      const v = videos[i];
+      const badge = document.getElementById(`pl-badge-${v.id}`);
+      const dlBox = document.getElementById(`pl-dl-${v.id}`);
+
+      badge.textContent = "working";
+      badge.className = "badge working";
+      logTo(plLog, `[${i + 1}/${videos.length}] "${v.title}" — checking captions...`);
+
+      try {
+        const res = await fetch(`${API_BASE}/transcribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: v.id }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "No captions");
+        }
+        const data = await res.json();
+        plTranscripts[v.id] = data;
+
+        badge.textContent = "done";
+        badge.className = "badge done";
+        dlBox.classList.add("show");
+        successCount++;
+        logTo(plLog, `[${i + 1}/${videos.length}] done — ${data.segments.length} segments (${data.language}).`, "ok");
+      } catch (e) {
+        badge.textContent = "no captions";
+        badge.className = "badge error";
+        failCount++;
+        logTo(plLog, `[${i + 1}/${videos.length}] failed — ${e.message}`, "err");
+      }
+    }
+
+    plSummary.textContent = `Finished: ${successCount} transcribed, ${failCount} failed, ${videos.length} total.`;
+    logTo(plLog, `All done. ${successCount} succeeded, ${failCount} failed.`, successCount ? "ok" : "err");
+    plGoBtn.disabled = false;
+  }
+
+  plGoBtn.addEventListener("click", runPlaylist);
+  plUrlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") runPlaylist(); });
+</script>
+</body>
+</html>
     font-weight: 600;
     letter-spacing: -0.02em;
   }
